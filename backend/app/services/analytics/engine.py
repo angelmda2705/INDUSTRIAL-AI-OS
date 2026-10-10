@@ -227,6 +227,7 @@ def _upsert_findings(
             description=draft.description, evidence=draft.evidence, rule_code=draft.rule_code, method=draft.method,
             priority=draft.priority, impact_amount=draft.impact_amount,
             impact_currency=currency if draft.impact_amount is not None else None, impact_basis=draft.impact_basis,
+            impact_kind=draft.impact_kind if draft.impact_amount is not None else None,
             confidence=draft.confidence, confidence_basis=draft.confidence_basis, recommendation=draft.recommendation,
         )
         finding = existing.get(fp)

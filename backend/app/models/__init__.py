@@ -7,6 +7,7 @@ from app.models.analysis import (  # noqa: F401
     FindingEvent,
     FindingNature,
     FindingStatus,
+    ImpactKind,
     KpiTarget,
     KpiValue,
     Report,

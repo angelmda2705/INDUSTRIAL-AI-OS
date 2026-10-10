@@ -29,6 +29,8 @@ def test_inventory_rules_produce_explained_findings(admin_a):
     assert stockout["events"][0]["event_type"] == "detected"
     excess = rules["INV-EXCESS"]
     assert excess["impact_amount"] == 400.0 and "No es un ahorro" in excess["impact_basis"]
+    assert excess["impact_kind"] == "capital_tied"
+    assert rules["INV-STOCKOUT"]["impact_amount"] is None and rules["INV-STOCKOUT"]["impact_kind"] is None
     assert rules["INV-NO-MOVEMENT"]["nature"] == "hypothesis"
     below = admin_a.get(f"/api/v1/findings/{rules['INV-BELOW-ROP']['id']}").json()
     assert below["evidence"]["items"][0]["_suggested_order_qty"] == 90.0
@@ -119,7 +121,7 @@ def test_fuel_anomaly_is_statistical_with_confidence_and_impact(admin_a):
     f = _by_rule(admin_a)["FLT-FUEL-ANOMALY"]
     assert f["nature"] == "statistical_anomaly" and f["confidence"] == "media"  # 11 intervals
     # median 5 km/l → expected 100 l; excess = 80 l × 25 = 2000
-    assert f["impact_amount"] == 2000.0
+    assert f["impact_amount"] == 2000.0 and f["impact_kind"] == "estimated_excess_cost"
     detail = admin_a.get(f"/api/v1/findings/{f['id']}").json()
     assert len(detail["evidence"]["anomalous_loads"]) == 1
     assert "no establece la causa" in f["description"]
@@ -138,6 +140,25 @@ def test_missing_values_and_duplicates_produce_data_quality_findings(admin_a):
         "template_code": "production_records", "mapping": preview["suggested_mappings"]["production_records"], "dataset_id": ds})
     admin_a.post(f"/api/v1/imports/{job['id']}/commit", json={"skip_duplicates": False})
     assert "DQ-DUPLICATES" in _by_rule(admin_a)
+
+
+def test_impact_amounts_require_a_kind():
+    import pytest
+
+    from app.services.analytics.rules import FindingDraft
+
+    with pytest.raises(ValueError):
+        FindingDraft(rule_code="X", key="k", area="a", category="c", nature="hypothesis", title="t", description="d",
+                     method="m", priority="low", recommendation="r", impact_amount=10.0)
+
+
+def test_dashboard_never_adds_different_impact_kinds(admin_a):
+    import_csv(admin_a, INVENTORY_CSV, "inventory_items", "Inventario")
+    impact = admin_a.get("/api/v1/dashboard").json()["impact"]
+    by_kind = impact["open_by_kind"]
+    # Excess (400 = (500 − 100) × 1) and no-movement (5 × 100 = 500) are both immobilized capital
+    assert by_kind == {"capital_tied": {"amount": 900.0, "findings": 2}}
+    assert "no se suman" in impact["note"]
 
 
 def test_findings_filters_and_export(admin_a):

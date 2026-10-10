@@ -34,13 +34,17 @@ def build(db: Session, ctx: RequestContext, *, area: str | None = None, dataset_
     by_priority: dict[str, int] = {}
     by_area: dict[str, int] = {}
     by_nature: dict[str, int] = {}
-    impact_by_nature: dict[str, float] = {}
+    # Amounts are aggregated per kind only: a recorded cost, an estimated excess cost and the
+    # value of immobilized inventory mean different things and must not be added together.
+    impact_by_kind: dict[str, dict] = {}
     for f in open_findings:
         by_priority[f.priority] = by_priority.get(f.priority, 0) + 1
         by_area[f.area] = by_area.get(f.area, 0) + 1
         by_nature[f.nature] = by_nature.get(f.nature, 0) + 1
-        if f.impact_amount and f.condition_active:
-            impact_by_nature[f.nature] = round(impact_by_nature.get(f.nature, 0.0) + f.impact_amount, 2)
+        if f.impact_amount and f.condition_active and f.impact_kind:
+            entry = impact_by_kind.setdefault(f.impact_kind, {"amount": 0.0, "findings": 0})
+            entry["amount"] = round(entry["amount"] + f.impact_amount, 2)
+            entry["findings"] += 1
 
     kpis = latest_totals(db, ctx, include_demo, dataset_id)
     if area:
@@ -106,13 +110,14 @@ def build(db: Session, ctx: RequestContext, *, area: str | None = None, dataset_
             "top": [
                 {"id": f.id, "code": f.code, "title": f.title, "priority": f.priority, "area": f.area, "nature": f.nature,
                  "status": f.status, "impact_amount": f.impact_amount, "impact_currency": f.impact_currency,
-                 "is_demo": f.is_demo, "condition_active": f.condition_active}
+                 "impact_kind": f.impact_kind, "is_demo": f.is_demo, "condition_active": f.condition_active}
                 for f in open_findings[:8]
             ],
         },
         "impact": {
-            "open_estimated_by_nature": impact_by_nature,
-            "note": "Impacto estimado de hallazgos abiertos con condición vigente. No representa ahorros realizados.",
+            "open_by_kind": impact_by_kind,
+            "note": "Montos de hallazgos abiertos con condición vigente, agrupados por tipo. Los tipos no se suman entre sí "
+                    "y ninguno representa un ahorro realizado.",
         },
         "kpis": kpis,
         "series": series,

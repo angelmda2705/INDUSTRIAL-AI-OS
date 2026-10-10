@@ -33,6 +33,7 @@ def test_xlsx_report_reflects_stored_values(admin_a):
     assert kpis["Cumplimiento de producción"][5] == 90
     summary = {row[0]: row[1] for row in wb["Resumen"].iter_rows(values_only=True)}
     assert summary["Organización"] == "Empresa A"
+    assert not any("Impacto estimado abierto" in str(k) for k in summary)  # no cross-kind total
     sources = list(wb["Fuentes"].iter_rows(min_row=2, values_only=True))
     assert sources[0][7] == "datos.csv"
     limitations = [r[0] for r in wb["Limitaciones"].iter_rows(min_row=2, values_only=True)]

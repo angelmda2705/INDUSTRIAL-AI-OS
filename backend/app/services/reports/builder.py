@@ -8,7 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.errors import ValidationFailed
-from app.models import Dataset, Finding, FindingStatus, ImportJob, ImportStatus, Membership, User
+from app.models import Dataset, Finding, FindingStatus, ImpactKind, ImportJob, ImportStatus, Membership, User
 from app.services.analytics.kpis import KPIS
 from app.services.context import RequestContext
 from app.services.findings import PRIORITY_ORDER
@@ -29,6 +29,11 @@ NATURE_LABELS = {"confirmed_issue": "Problema confirmado en datos", "statistical
                  "hypothesis": "Hipótesis a investigar"}
 STATUS_LABELS = {"open": "Abierto", "in_review": "En revisión", "action_planned": "Acción planificada",
                  "resolved": "Resuelto", "dismissed": "Descartado"}
+IMPACT_KIND_LABELS = {
+    ImpactKind.RECORDED_COST: "Costo registrado asociado",
+    ImpactKind.ESTIMATED_EXCESS_COST: "Sobrecosto estimado",
+    ImpactKind.CAPITAL_TIED: "Valor de inventario expuesto o inmovilizado",
+}
 
 
 def build_report_data(db: Session, ctx: RequestContext, report_type: str, dataset_ids: list[int] | None,
@@ -109,7 +114,13 @@ def build_report_data(db: Session, ctx: RequestContext, report_type: str, datase
         "summary": {
             "open_findings": len(open_findings),
             "critical_or_high": sum(1 for f in open_findings if f.priority in ("critical", "high")),
-            "estimated_impact_open": round(sum(f.impact_amount or 0 for f in open_findings if f.condition_active), 2),
+            # Per impact kind; kinds are never added together (see ImpactKind).
+            "impact_open_by_kind": {
+                IMPACT_KIND_LABELS[kind]: round(sum(f.impact_amount for f in open_findings
+                                                    if f.condition_active and f.impact_kind == kind and f.impact_amount), 2)
+                for kind in ImpactKind.ALL
+                if any(f.condition_active and f.impact_kind == kind and f.impact_amount for f in open_findings)
+            },
             "kpis_ok": sum(1 for k in kpis if k["status"] == "ok"),
             "kpis_insufficient": sum(1 for k in kpis if k["status"] != "ok"),
             "kpis_missing_target": sum(1 for k in kpis if k["status"] == "ok" and k["evaluation"] == "misses"),
@@ -125,6 +136,7 @@ def _finding_dict(f: Finding, owners: dict[int, str]) -> dict:
         "priority": PRIORITY_LABELS.get(f.priority, f.priority), "status": STATUS_LABELS.get(f.status, f.status),
         "description": f.description, "method": f.method, "recommendation": f.recommendation,
         "impact_amount": f.impact_amount, "impact_currency": f.impact_currency, "impact_basis": f.impact_basis,
+        "impact_kind": IMPACT_KIND_LABELS.get(f.impact_kind) if f.impact_kind else None,
         "confidence": f.confidence, "owner": owners.get(f.owner_user_id) if f.owner_user_id else None,
         "due_date": f.due_date.isoformat() if f.due_date else None, "condition_active": f.condition_active,
         "detected_at": f.first_detected_at.date().isoformat(), "evidence_summary": _evidence_summary(f.evidence),

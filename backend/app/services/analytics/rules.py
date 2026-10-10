@@ -20,7 +20,7 @@ from typing import Any
 
 import pandas as pd
 
-from app.models import FindingNature
+from app.models import FindingNature, ImpactKind
 from app.services.analytics.kpis import KPIS, KpiResult, kpis_for_template
 from app.services.analytics.stats import mann_kendall, robust_z_scores, round_or_none
 from app.services.imports.templates import ImportTemplate
@@ -45,8 +45,13 @@ class FindingDraft:
     evidence: dict = field(default_factory=dict)
     impact_amount: float | None = None
     impact_basis: str | None = None
+    impact_kind: str | None = None  # ImpactKind; required whenever impact_amount is set
     confidence: str | None = None
     confidence_basis: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.impact_amount is not None and self.impact_kind not in ImpactKind.ALL:
+            raise ValueError(f"{self.rule_code}: an impact amount needs a valid impact_kind")
 
     def fingerprint(self, dataset_id: int) -> str:
         return hashlib.sha256(f"{dataset_id}|{self.rule_code}|{self.key}".encode()).hexdigest()
@@ -287,6 +292,7 @@ def rule_recurrent_failures(ctx: RuleContext) -> list[FindingDraft]:
                       "total_repair_h": round(downtime, 2)},
             impact_amount=round_or_none(float(group["_total_cost"].sum(skipna=True)), 2) if group["_total_cost"].notna().any() else None,
             impact_basis="Costo registrado de las fallas del equipo (refacciones + mano de obra + otros). No incluye producción perdida." if group["_total_cost"].notna().any() else None,
+            impact_kind=ImpactKind.RECORDED_COST if group["_total_cost"].notna().any() else None,
         ))
     return drafts
 
@@ -447,6 +453,7 @@ def rule_inventory(ctx: RuleContext) -> list[FindingDraft]:
                                      ["sku", "description", "on_hand_qty", "max_qty", "_excess_qty", "_excess_value"])},
             impact_amount=round_or_none(value, 2) if value > 0 else None,
             impact_basis=f"Valor del excedente sobre el máximo (capital inmovilizado, {cur}). No es un ahorro: liberar ese capital depende de consumir o vender el inventario." if value > 0 else None,
+            impact_kind=ImpactKind.CAPITAL_TIED if value > 0 else None,
         ))
 
     stale = df[df["_obsolete_candidate"]]
@@ -467,6 +474,7 @@ def rule_inventory(ctx: RuleContext) -> list[FindingDraft]:
                                      ["sku", "description", "on_hand_qty", "last_movement_date", "_days_without_movement", "_value"])},
             impact_amount=round_or_none(value, 2) if value > 0 else None,
             impact_basis=f"Valor a costo de los artículos sin movimiento ({cur}). Es valor expuesto, no pérdida ni ahorro." if value > 0 else None,
+            impact_kind=ImpactKind.CAPITAL_TIED if value > 0 else None,
         ))
 
     active = df[df["avg_daily_demand"] > 0]
@@ -534,6 +542,7 @@ def rule_fuel_anomalies(ctx: RuleContext) -> list[FindingDraft]:
                       "anomalous_loads": _rows(low, ["date", "odometer_km", "_interval_km", "_interval_liters", "_kml", "_z",
                                                      "_expected_liters", "_excess_liters", "driver_code", "route"])},
             impact_amount=round_or_none(excess_cost, 2) if excess_cost else None,
+            impact_kind=ImpactKind.ESTIMATED_EXCESS_COST if excess_cost else None,
             impact_basis=(f"Σ (litros cargados − distancia ÷ mediana km/l del vehículo) × precio por litro de cada carga ({ctx.currency}). "
                           "Estimación del sobreconsumo; solo es real si la anomalía no es un error de captura.") if excess_cost else None,
             confidence=conf,

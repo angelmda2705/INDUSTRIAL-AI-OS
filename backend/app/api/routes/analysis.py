@@ -28,7 +28,7 @@ from app.services import kpi_service, storage
 from app.services.analytics.kpis import CATALOG
 from app.services.context import RequestContext
 from app.services.reports import service as report_service
-from app.services.reports.builder import NATURE_LABELS, PRIORITY_LABELS, REPORT_TYPES, STATUS_LABELS
+from app.services.reports.builder import IMPACT_KIND_LABELS, NATURE_LABELS, PRIORITY_LABELS, REPORT_TYPES, STATUS_LABELS
 from app.services.reports.render import safe_cell
 from app.services.tenancy import get_owned
 
@@ -108,13 +108,15 @@ def export_findings(include_demo: bool = True, ctx: RequestContext = Depends(req
     ws = wb.active
     ws.title = "Hallazgos"
     ws.append(["Código", "Título", "Área", "Naturaleza", "Prioridad", "Estado", "Condición vigente", "Detectado",
-               "Último análisis", "Método", "Recomendación", "Impacto estimado", "Moneda", "Base del impacto", "Confianza", "Demo"])
+               "Último análisis", "Método", "Recomendación", "Impacto (monto)", "Tipo de impacto", "Moneda", "Base del impacto",
+               "Confianza", "Demo"])
     for f in rows:
         ws.append([safe_cell(v) for v in (
             f.code, f.title, f.area, NATURE_LABELS.get(f.nature, f.nature), PRIORITY_LABELS.get(f.priority, f.priority),
             STATUS_LABELS.get(f.status, f.status), "Sí" if f.condition_active else "No",
             f.first_detected_at.strftime("%Y-%m-%d %H:%M"), f.last_detected_at.strftime("%Y-%m-%d %H:%M"), f.method,
-            f.recommendation, f.impact_amount, f.impact_currency, f.impact_basis, f.confidence, "Sí" if f.is_demo else "No")])
+            f.recommendation, f.impact_amount, IMPACT_KIND_LABELS.get(f.impact_kind) if f.impact_kind else None,
+            f.impact_currency, f.impact_basis, f.confidence, "Sí" if f.is_demo else "No")])
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)

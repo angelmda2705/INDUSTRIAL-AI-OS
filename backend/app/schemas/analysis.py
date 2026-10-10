@@ -23,6 +23,7 @@ class FindingOut(ORM):
     impact_amount: float | None
     impact_currency: str | None
     impact_basis: str | None
+    impact_kind: str | None
     confidence: str | None
     confidence_basis: str | None
     recommendation: str

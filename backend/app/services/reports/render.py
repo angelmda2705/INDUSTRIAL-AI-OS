@@ -54,7 +54,8 @@ def render_xlsx(data: dict) -> bytes:
         ("Generado", data["generated_at"] + " UTC"), ("Generado por", data["generated_by"]),
         ("Hallazgos abiertos", data["summary"]["open_findings"]),
         ("Críticos o altos", data["summary"]["critical_or_high"]),
-        (f"Impacto estimado abierto ({data['currency']})", data["summary"]["estimated_impact_open"]),
+        *[(f"{kind} ({data['currency']}, no sumable con otros tipos)", amount)
+          for kind, amount in data["summary"]["impact_open_by_kind"].items()],
         ("Indicadores calculados", data["summary"]["kpis_ok"]),
         ("Indicadores sin datos suficientes", data["summary"]["kpis_insufficient"]),
     ]
@@ -72,11 +73,12 @@ def render_xlsx(data: dict) -> bytes:
             k["target"], {"meets": "Cumple", "misses": "No cumple"}.get(k["evaluation"], "Sin objetivo"),
             k["sample_size"], k["formula"], k["message"]] for k in data["kpis"]])
     sheet("Hallazgos", ["Código", "Título", "Área", "Naturaleza", "Prioridad", "Estado", "Condición vigente", "Detectado",
-                        "Descripción", "Método", "Evidencia", "Recomendación", "Impacto estimado", "Moneda", "Base del impacto",
-                        "Confianza", "Responsable", "Fecha límite"],
+                        "Descripción", "Método", "Evidencia", "Recomendación", "Impacto (monto)", "Tipo de impacto", "Moneda",
+                        "Base del impacto", "Confianza", "Responsable", "Fecha límite"],
           [[f["code"], f["title"], f["area"], f["nature"], f["priority"], f["status"], "Sí" if f["condition_active"] else "No",
             f["detected_at"], f["description"], f["method"], f["evidence_summary"], f["recommendation"], f["impact_amount"],
-            f["impact_currency"], f["impact_basis"], f["confidence"], f["owner"], f["due_date"]] for f in data["findings"]])
+            f["impact_kind"], f["impact_currency"], f["impact_basis"], f["confidence"], f["owner"], f["due_date"]]
+           for f in data["findings"]])
     sheet("Acciones pendientes", ["Código", "Título", "Prioridad", "Estado", "Responsable", "Fecha límite"],
           [[f["code"], f["title"], f["priority"], f["status"], f["owner"] or "Sin asignar", f["due_date"]] for f in data["pending_actions"]])
     src_rows = []
@@ -134,10 +136,15 @@ def render_pdf(data: dict) -> bytes:
         P(f"Generado: {data['generated_at']} UTC por {data['generated_by']}", body),
         Spacer(1, 8),
         P("Resumen", h2),
-        table(["Hallazgos abiertos", "Críticos/altos", f"Impacto estimado abierto ({data['currency']})",
-               "Indicadores calculados", "Indicadores sin datos suficientes"],
-              [[data["summary"]["open_findings"], data["summary"]["critical_or_high"], _num(data["summary"]["estimated_impact_open"]),
-                data["summary"]["kpis_ok"], data["summary"]["kpis_insufficient"]]], [5 * cm] * 5),
+        table(["Hallazgos abiertos", "Críticos/altos", "Indicadores calculados", "Indicadores sin datos suficientes"],
+              [[data["summary"]["open_findings"], data["summary"]["critical_or_high"],
+                data["summary"]["kpis_ok"], data["summary"]["kpis_insufficient"]]], [6 * cm] * 4),
+        Spacer(1, 6),
+        P(f"Montos asociados a hallazgos abiertos ({data['currency']}). Cada tipo tiene un significado distinto y no se suman "
+          "entre sí; ninguno es un ahorro realizado.", body),
+        table(["Tipo de impacto", "Monto"],
+              [[kind, _num(amount)] for kind, amount in data["summary"]["impact_open_by_kind"].items()]
+              or [["Sin montos calculables", "—"]], [12 * cm, 5 * cm]),
         Spacer(1, 6),
         P("Indicadores", h2),
         table(["Indicador", "Conjunto", "Valor", "Objetivo", "Evaluación", "Muestra", "Fórmula / nota"],
@@ -151,10 +158,10 @@ def render_pdf(data: dict) -> bytes:
     ]
     if data["findings"]:
         story.append(table(
-            ["Código", "Hallazgo", "Naturaleza / prioridad", "Evidencia y método", "Recomendación", "Impacto estimado", "Estado"],
+            ["Código", "Hallazgo", "Naturaleza / prioridad", "Evidencia y método", "Recomendación", "Impacto (tipo y base)", "Estado"],
             [[f["code"], f"{f['title']}. {f['description']}", f"{f['nature']} · {f['priority']}" + (f" · confianza {f['confidence']}" if f["confidence"] else ""),
               f"{f['evidence_summary']}. Método: {f['method']}", f["recommendation"],
-              f"{_num(f['impact_amount'])} {f['impact_currency']} — {f['impact_basis']}" if f["impact_amount"] is not None else "No calculable",
+              f"{_num(f['impact_amount'])} {f['impact_currency']} ({f['impact_kind']}) — {f['impact_basis']}" if f["impact_amount"] is not None else "No calculable",
               f["status"] + ("" if f["condition_active"] else " (ya no detectado)")] for f in data["findings"]],
             [2 * cm, 6.5 * cm, 3 * cm, 5.5 * cm, 4.5 * cm, 3.5 * cm, 1.8 * cm],
         ))

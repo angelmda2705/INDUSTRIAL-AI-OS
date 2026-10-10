@@ -77,6 +77,16 @@ class FindingNature:
     HYPOTHESIS = "hypothesis"  # plausible explanation requiring investigation
 
 
+class ImpactKind:
+    """Meaning of a finding's economic amount. Different kinds are not additive."""
+
+    RECORDED_COST = "recorded_cost"  # cost already recorded in the data (e.g. repair costs)
+    ESTIMATED_EXCESS_COST = "estimated_excess_cost"  # estimated avoidable cost (e.g. fuel over-consumption)
+    CAPITAL_TIED = "capital_tied"  # value exposed or immobilized (e.g. excess inventory); not a loss nor a saving
+
+    ALL = (RECORDED_COST, ESTIMATED_EXCESS_COST, CAPITAL_TIED)
+
+
 class FindingStatus:
     OPEN = "open"
     IN_REVIEW = "in_review"
@@ -117,6 +127,8 @@ class Finding(Base, TenantMixin, TimestampMixin):
     impact_amount: Mapped[float | None] = mapped_column(Float)
     impact_currency: Mapped[str | None] = mapped_column(String(3))
     impact_basis: Mapped[str | None] = mapped_column(Text)  # formula + assumptions
+    # What the amount represents (see ImpactKind). Amounts of different kinds must never be added together.
+    impact_kind: Mapped[str | None] = mapped_column(String(30))
     confidence: Mapped[str | None] = mapped_column(String(10))  # only for statistical methods
     confidence_basis: Mapped[str | None] = mapped_column(Text)
     recommendation: Mapped[str] = mapped_column(Text, nullable=False)
