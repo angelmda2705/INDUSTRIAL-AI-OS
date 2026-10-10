@@ -35,7 +35,9 @@ test("login → demo data → findings workflow → import wizard → report →
   await page.getByRole("link", { name: "Hallazgos" }).first().click();
   await expect(page.getByRole("heading", { name: "Hallazgos" })).toBeVisible();
   await page.locator("table a").first().click();
-  await expect(page.getByText("Evidencia")).toBeVisible();
+  await expect(page).toHaveURL(/\/findings\/\d+$/);
+  await expect(page.getByRole("heading", { name: "Evidencia", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Cambiar estado")).toBeVisible();
   // Pick any allowed transition that does not require a closing note (state depends on earlier runs).
   const statusSelect = page.getByLabel("Cambiar estado");
   const choices = await statusSelect.locator("option").evaluateAll((opts) =>

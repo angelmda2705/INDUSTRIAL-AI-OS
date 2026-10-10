@@ -17,6 +17,7 @@ import getpass
 import os
 import sys
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 
 from sqlalchemy import delete, or_, select
 
@@ -84,6 +85,13 @@ def cmd_cleanup_sessions(_: argparse.Namespace) -> None:
         print(f"Sesiones eliminadas: {s}; tokens de recuperación eliminados: {t}")
 
 
+def cmd_export_docs(args: argparse.Namespace) -> None:
+    from app.docs_export import export
+
+    for path in export(Path(args.out).resolve()):
+        print(f"Escrito: {path}")
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -99,6 +107,9 @@ def main(argv: list[str] | None = None) -> None:
     p.add_argument("--name", required=True)
     p.set_defaults(func=cmd_create_platform_admin)
     sub.add_parser("cleanup-sessions", help="Depurar sesiones y tokens vencidos").set_defaults(func=cmd_cleanup_sessions)
+    p = sub.add_parser("export-docs", help="Regenerar catálogo de KPI y referencia de API desde el código")
+    p.add_argument("--out", default=str(BACKEND_DIR.parent / "docs"))
+    p.set_defaults(func=cmd_export_docs)
     args = parser.parse_args(argv)
     try:
         args.func(args)
