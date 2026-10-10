@@ -43,9 +43,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). V
 | `eslint` + `tsc --noEmit` + `next build` | Node 22 | sin errores |
 | Playwright E2E (login → demo → hallazgo → importación → reporte → logout) | Chromium, API sobre PostgreSQL | aprobada (3 ejecuciones consecutivas) |
 | Respaldo y restauración (`scripts/backup.sh`/`restore.sh`) | PostgreSQL 16 | conteos idénticos, archivos idénticos (SHA-256), RLS preservada |
+| CI de GitHub Actions (lint, `pytest` en SQLite y en PostgreSQL 16 con RLS, lint y build del frontend) | runners de GitHub (`ubuntu-latest`) | **4 ejecuciones exitosas**: 2 en la rama de trabajo, 1 en el PR #1 y 1 en `main` tras la integración |
 
 ### No verificado
 
 - Construcción/ejecución de imágenes Docker (sin demonio Docker en el entorno).
 - Envío real por SMTP.
-- Ejecución del flujo de GitHub Actions.

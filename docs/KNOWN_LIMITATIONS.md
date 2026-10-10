@@ -6,7 +6,7 @@
 |---|---|
 | Imágenes Docker y `docker-compose.yml` | Escritos pero **no construidos ni ejecutados**: el entorno no tenía demonio Docker. Se verificaron por separado el script de inicialización del rol de BD y las migraciones con ese rol. |
 | Envío de correo (SMTP) | Implementado con `smtplib` y STARTTLS, **no probado** contra un servidor real. En desarrollo/pruebas el mensaje se captura localmente. |
-| GitHub Actions | Flujo escrito; se ejecutará al primer push que lo active. |
+| Prueba E2E en CI | El CI de GitHub Actions (verificado: lint, pruebas en SQLite y PostgreSQL, build) **no** ejecuta la prueba Playwright; esta se corre manualmente con la API y la web en ejecución. |
 | Navegadores distintos de Chromium y tabletas físicas | La interfaz es adaptable, pero la prueba E2E solo corre en Chromium de escritorio. |
 
 ## Limitaciones funcionales
