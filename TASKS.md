@@ -56,7 +56,7 @@ Leyenda: ✅ implementado y probado · 🟡 parcial · ⬜ pendiente · ⚠️ i
 | Migraciones versionadas (Alembic) | ✅ | `0001`, `0002`; verificadas en SQLite y PostgreSQL |
 | Respaldo y restauración | ✅ | `scripts/backup.sh` / `restore.sh` verificados contra PostgreSQL 16 |
 | Docker / docker-compose | ⚠️ | Escritos, **no construidos** (sin demonio Docker en el entorno) |
-| CI (GitHub Actions) | ⚠️ | Escrito, no ejecutado aún en GitHub |
+| CI (GitHub Actions) | ✅ | 4 ejecuciones exitosas en GitHub (rama de trabajo, PR #1 y `main`): lint, pruebas en SQLite y en PostgreSQL con RLS, build del frontend |
 | Monitoreo | 🟡 | `/api/v1/system/health` y logs JSON; sin métricas ni alertas |
 
 ## Pendiente (fases siguientes)
