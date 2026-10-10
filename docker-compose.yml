@@ -1,0 +1,71 @@
+# Single-host deployment: PostgreSQL + API + web. NOT verified in the development
+# session (no Docker daemon available) — see docs/KNOWN_LIMITATIONS.md.
+#
+#   cp .env.example .env   # set real secrets first
+#   docker compose up -d --build
+#
+# Only the web container is published. The API is reachable only from the
+# internal network, which is why it can trust forwarded headers from it.
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: iios
+      POSTGRES_USER: ${POSTGRES_ADMIN_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?set POSTGRES_ADMIN_PASSWORD in .env}
+      IIOS_DB_APP_PASSWORD: ${IIOS_DB_APP_PASSWORD:?set IIOS_DB_APP_PASSWORD in .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./scripts/db-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d iios"]
+      interval: 5s
+      retries: 20
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      IIOS_ENVIRONMENT: production
+      # Non-superuser application role (row-level security applies to it).
+      IIOS_DATABASE_URL: postgresql+psycopg://iios_app:${IIOS_DB_APP_PASSWORD}@db:5432/iios
+      IIOS_COOKIE_SECURE: ${IIOS_COOKIE_SECURE:-true}
+      IIOS_PUBLIC_APP_URL: ${IIOS_PUBLIC_APP_URL:-https://localhost}
+      IIOS_SMTP_HOST: ${IIOS_SMTP_HOST:-}
+      IIOS_SMTP_PORT: ${IIOS_SMTP_PORT:-587}
+      IIOS_SMTP_USERNAME: ${IIOS_SMTP_USERNAME:-}
+      IIOS_SMTP_PASSWORD: ${IIOS_SMTP_PASSWORD:-}
+      IIOS_SMTP_FROM: ${IIOS_SMTP_FROM:-}
+      IIOS_ALLOW_SELF_SIGNUP: ${IIOS_ALLOW_SELF_SIGNUP:-false}
+      # The API port is not published; only the web container can reach it.
+      FORWARDED_ALLOW_IPS: "*"
+    volumes:
+      - storage:/var/lib/iios/storage
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/system/health')"]
+      interval: 10s
+      retries: 10
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_BRAND_NAME: ${NEXT_PUBLIC_BRAND_NAME:-Industrial Intelligence OS}
+        NEXT_PUBLIC_BRAND_SHORT_NAME: ${NEXT_PUBLIC_BRAND_SHORT_NAME:-IIOS}
+        NEXT_PUBLIC_BRAND_PRIMARY_COLOR: ${NEXT_PUBLIC_BRAND_PRIMARY_COLOR:-#0f766e}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      IIOS_BACKEND_URL: http://api:8000
+    ports:
+      - "3000:3000"   # put a TLS-terminating reverse proxy in front (see docs/DEPLOYMENT.md)
+
+volumes:
+  db-data:
+  storage:
